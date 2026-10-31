@@ -8,6 +8,7 @@ An Azure Functions API (Python) reads `All_Diets.csv` from Azure Blob Storage an
 |---|---|
 | Azure Function URL | https://dietinsights-func-9c7a4a.azurewebsites.net/api (try [`/insights`](https://dietinsights-func-9c7a4a.azurewebsites.net/api/insights) or [`/health`](https://dietinsights-func-9c7a4a.azurewebsites.net/api/health)) |
 | Dashboard (App Service) | https://dietinsights-web-9c7a4a.azurewebsites.net |
+| GitHub repository | https://github.com/pawsp7/nutritional-insights-dashboard |
 | Documentation PDF | [docs/Phase2_Documentation.pdf](docs/Phase2_Documentation.pdf) |
 
 The deploy script also writes these URLs to `infra/deployment-outputs.json`.
