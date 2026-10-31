@@ -1,0 +1,16 @@
+{
+    "deployedAt":  "2026-10-31T01:10:05.8731565Z",
+    "subscription":  "Azure for Students",
+    "resourceGroup":  "diet-analysis-rg",
+    "location":  "canadacentral",
+    "storageAccount":  "dietinsightsst9c7a4a",
+    "datasetBlob":  "datasets/All_Diets.csv",
+    "functionApp":  "dietinsights-func-9c7a4a",
+    "functionPlan":  "flex",
+    "functionApiUrl":  "https://dietinsights-func-9c7a4a.azurewebsites.net/api",
+    "healthUrl":  "https://dietinsights-func-9c7a4a.azurewebsites.net/api/health",
+    "insightsUrl":  "https://dietinsights-func-9c7a4a.azurewebsites.net/api/insights",
+    "frontendHost":  "appservice",
+    "dashboardApp":  "dietinsights-web-9c7a4a",
+    "dashboardUrl":  "https://dietinsights-web-9c7a4a.azurewebsites.net"
+}

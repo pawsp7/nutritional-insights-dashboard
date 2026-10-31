@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Azure Functions local secrets (local.settings.example.json is the template)
+backend/local.settings.json
+
+# Local tooling
+node_modules/
+__azurite_db*
+__blobstorage__/
+.swa/
+
+# Office lock files
+~$*
+
+# Course handouts (the instructor's files, not part of this project's source)
+Phase2_Cloud_Dashboard_Project*.docx
+UI-for-project2.html
+UI-for-project2.html.zip

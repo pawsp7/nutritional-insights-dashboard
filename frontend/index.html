@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutritional Insights</title>
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.0.0/dist/tailwind.min.css" rel="stylesheet">
+    <link href="css/app.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js" defer></script>
+    <script src="js/config.js" defer></script>
+    <script src="js/app.js" defer></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <header class="bg-blue-600 p-4 text-white">
+        <div class="container mx-auto flex flex-wrap items-center justify-between gap-2">
+            <h1 class="text-3xl font-semibold">Nutritional Insights</h1>
+            <div class="flex items-center gap-2 text-sm">
+                <span id="statusDot" class="status-dot status-pending" aria-hidden="true"></span>
+                <span id="statusText">Connecting to Azure Function…</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Function metadata strip: execution time and data source of the latest call -->
+    <div class="bg-white border-b">
+        <dl id="metaStrip" class="container mx-auto px-6 py-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-sm">
+            <div><dt class="meta-label">Function execution</dt><dd id="metaExec" class="meta-value">–</dd></div>
+            <div><dt class="meta-label">Round trip</dt><dd id="metaRoundTrip" class="meta-value">–</dd></div>
+            <div><dt class="meta-label">Data cache</dt><dd id="metaCache" class="meta-value">–</dd></div>
+            <div><dt class="meta-label">Blob source</dt><dd id="metaBlob" class="meta-value truncate">–</dd></div>
+            <div><dt class="meta-label">Blob last modified</dt><dd id="metaBlobModified" class="meta-value">–</dd></div>
+            <div><dt class="meta-label">Served by</dt><dd id="metaInstance" class="meta-value truncate">–</dd></div>
+        </dl>
+    </div>
+
+    <main class="container mx-auto p-6">
+        <div id="alert" class="hidden mb-6 p-4 rounded-lg border border-red-300 bg-red-50 text-red-800" role="alert"></div>
+
+        <section class="mb-8" aria-labelledby="summaryHeading">
+            <h2 id="summaryHeading" class="sr-only">Summary</h2>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="tile"><p class="tile-label">Recipes analysed</p><p id="sumRecipes" class="tile-value">–</p><p id="sumRecipesSub" class="tile-sub">&nbsp;</p></div>
+                <div class="tile"><p id="sumTopLabel" class="tile-label">Highest-protein diet</p><p id="sumTopDiet" class="tile-value">–</p><p id="sumTopDietSub" class="tile-sub">&nbsp;</p></div>
+                <div class="tile"><p class="tile-label">Average macros per recipe</p><p id="sumMacros" class="tile-value">–</p><p class="tile-sub">protein / carbs / fat (g)</p></div>
+                <div class="tile"><p class="tile-label">Median protein : carbs</p><p id="sumRatio" class="tile-value">–</p><p id="sumRatioSub" class="tile-sub">&nbsp;</p></div>
+            </div>
+        </section>
+
+        <section class="mb-8">
+            <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+                <h2 class="text-2xl font-semibold">Explore Nutritional Insights</h2>
+                <p id="chartScope" class="text-sm text-gray-600"></p>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold">Bar Chart</h3>
+                    <p class="text-sm text-gray-600">Average macronutrient content by diet type.</p>
+                    <div class="chart-box"><canvas id="barChart" aria-label="Average macronutrients by diet type" role="img"></canvas></div>
+                </div>
+
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <h3 class="font-semibold">Scatter Plot</h3>
+                            <p class="text-sm text-gray-600">Nutrient relationships: protein vs carbs per recipe (sample).</p>
+                        </div>
+                        <label class="text-sm text-gray-600 flex items-center gap-1 whitespace-nowrap">
+                            <input id="scatterLog" type="checkbox"> Log scale
+                        </label>
+                    </div>
+                    <div class="chart-box"><canvas id="scatterPlot" aria-label="Protein versus carbs scatter plot" role="img"></canvas></div>
+                </div>
+
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold">Heatmap</h3>
+                    <p class="text-sm text-gray-600">Nutrient correlations (Pearson r between macronutrients).</p>
+                    <div id="heatmap" class="chart-box heatmap" role="img" aria-label="Correlation heatmap"></div>
+                </div>
+
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold">Pie Chart</h3>
+                    <p id="pieCaption" class="text-sm text-gray-600">Recipe distribution by diet type.</p>
+                    <div class="chart-box"><canvas id="pieChart" aria-label="Recipe distribution" role="img"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Filters and Data Interaction</h2>
+            <div class="flex flex-wrap items-end gap-4">
+                <label class="w-full sm:w-auto">
+                    <span class="block text-sm text-gray-600 mb-1">Search recipes</span>
+                    <input id="searchInput" type="search" placeholder="Search by diet type, recipe or cuisine" class="p-2 border rounded w-full sm:w-80">
+                </label>
+                <label class="w-full sm:w-auto">
+                    <span class="block text-sm text-gray-600 mb-1">Diet type</span>
+                    <select id="dietSelect" class="p-2 border rounded w-full sm:w-56">
+                        <option value="all">All Diet Types</option>
+                    </select>
+                </label>
+                <label class="w-full sm:w-auto">
+                    <span class="block text-sm text-gray-600 mb-1">Sort recipes by</span>
+                    <select id="sortSelect" class="p-2 border rounded w-full sm:w-auto">
+                        <option value="protein:desc">Protein (high → low)</option>
+                        <option value="carbs:desc">Carbs (high → low)</option>
+                        <option value="fat:desc">Fat (high → low)</option>
+                        <option value="protein:asc">Protein (low → high)</option>
+                        <option value="name:asc">Name (A → Z)</option>
+                    </select>
+                </label>
+                <button id="resetBtn" class="py-2 px-4 rounded border bg-white hover:bg-gray-50">Reset filters</button>
+            </div>
+        </section>
+
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">API Data Interaction</h2>
+            <div class="flex flex-wrap items-center gap-4">
+                <button id="insightsBtn" class="api-btn bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">Get Nutritional Insights</button>
+                <button id="recipesBtn" class="api-btn bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">Get Recipes</button>
+                <span class="inline-flex items-center gap-2">
+                    <button id="clustersBtn" class="api-btn bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded">Get Clusters</button>
+                    <label class="text-sm text-gray-600">k
+                        <select id="kSelect" class="p-1 border rounded ml-1">
+                            <option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option>
+                        </select>
+                    </label>
+                </span>
+            </div>
+            <p class="text-sm text-gray-600 mt-2">“Get Nutritional Insights” re-reads the dataset from Azure Blob Storage (bypassing the function’s warm cache) and redraws the charts.</p>
+
+            <div id="recipesPanel" class="hidden mt-6 bg-white shadow-lg rounded-lg overflow-hidden">
+                <div class="p-4 border-b flex flex-wrap justify-between gap-2">
+                    <h3 class="font-semibold">Recipes</h3>
+                    <p id="recipesCaption" class="text-sm text-gray-600"></p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-50 text-left text-gray-600">
+                            <tr>
+                                <th class="px-4 py-2">Recipe</th>
+                                <th class="px-4 py-2">Diet</th>
+                                <th class="px-4 py-2">Cuisine</th>
+                                <th class="px-4 py-2 text-right">Protein (g)</th>
+                                <th class="px-4 py-2 text-right">Carbs (g)</th>
+                                <th class="px-4 py-2 text-right">Fat (g)</th>
+                                <th class="px-4 py-2 text-right">Protein : carbs</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recipesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="clustersPanel" class="hidden mt-6 bg-white shadow-lg rounded-lg p-4">
+                <div class="flex flex-wrap justify-between gap-2">
+                    <h3 class="font-semibold">Recipe clusters (k-means on macro profile)</h3>
+                    <p id="clustersCaption" class="text-sm text-gray-600"></p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+                    <div class="chart-box"><canvas id="clusterChart" aria-label="Recipe clusters, protein vs fat" role="img"></canvas></div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-gray-50 text-left text-gray-600">
+                                <tr>
+                                    <th class="px-3 py-2">Cluster</th>
+                                    <th class="px-3 py-2 text-right">Recipes</th>
+                                    <th class="px-3 py-2 text-right">Avg P / C / F (g)</th>
+                                    <th class="px-3 py-2">Most common diet</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clustersBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Pagination</h2>
+            <div class="flex flex-wrap justify-center items-center gap-2 mt-4" id="pagination" aria-label="Recipe pages">
+                <button class="px-3 py-1 bg-gray-300 rounded" disabled>Previous</button>
+                <button class="px-3 py-1 bg-gray-300 rounded" disabled>Next</button>
+            </div>
+            <p id="pageInfo" class="text-center text-sm text-gray-600 mt-2">Load recipes to page through results.</p>
+        </section>
+
+        <section>
+            <h2 class="text-2xl font-semibold mb-4">Request Log</h2>
+            <div class="bg-white shadow-lg rounded-lg overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-left text-gray-600">
+                        <tr>
+                            <th class="px-4 py-2">Time</th>
+                            <th class="px-4 py-2">Request</th>
+                            <th class="px-4 py-2">Status</th>
+                            <th class="px-4 py-2 text-right">Function ms</th>
+                            <th class="px-4 py-2 text-right">Round trip ms</th>
+                            <th class="px-4 py-2">Cache</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logBody">
+                        <tr><td colspan="6" class="px-4 py-3 text-gray-500">No requests yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">API endpoint: <code id="apiBase"></code></p>
+        </section>
+    </main>
+
+    <footer class="bg-blue-600 p-4 text-white text-center mt-10">
+        <p>&copy; 2026 Nutritional Insights. All Rights Reserved.</p>
+    </footer>
+
+</body>
+</html>

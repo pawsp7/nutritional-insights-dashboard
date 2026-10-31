@@ -1,0 +1,5 @@
+# Installed by the remote build on Azure (func azure functionapp publish).
+azure-functions==2.3.0
+azure-storage-blob==12.31.1
+pandas==3.1.0
+numpy==2.5.4

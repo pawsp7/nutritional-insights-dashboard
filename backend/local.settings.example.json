@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "DIETS_STORAGE_CONNECTION": "UseDevelopmentStorage=true",
+    "DIETS_CONTAINER": "datasets",
+    "DIETS_BLOB": "All_Diets.csv",
+    "DIETS_CACHE_SECONDS": "300"
+  },
+  "Host": {
+    "CORS": "*"
+  }
+}

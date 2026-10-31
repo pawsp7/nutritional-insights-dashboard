@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Phase 2 – Cloud Dashboard Development</title>
+<!-- Source for Phase2_Documentation.pdf. Rebuild with: node docs/tools/capture.mjs pdf docs/Phase2_Documentation.html docs/Phase2_Documentation.pdf -->
+<style>
+    @page { size: Letter; margin: 0.7in 0.7in 0.75in; }
+    :root { --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb; --blue: #2563eb; --soft: #f3f4f6; }
+    * { box-sizing: border-box; }
+    body { font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; color: var(--ink); font-size: 10.5pt; line-height: 1.45; margin: 0; background: #fff; }
+    h1 { font-size: 22pt; margin: 0 0 4pt; color: #1e3a8a; }
+    h2 { font-size: 14pt; color: #1e3a8a; border-bottom: 2px solid var(--blue); padding-bottom: 3pt; margin: 22pt 0 8pt; break-after: avoid; }
+    h3 { font-size: 11.5pt; margin: 14pt 0 5pt; break-after: avoid; }
+    p { margin: 0 0 7pt; }
+    ul, ol { margin: 0 0 8pt; padding-left: 18pt; }
+    li { margin-bottom: 2pt; }
+    code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 9pt; background: var(--soft); padding: 0 3px; border-radius: 3px; }
+    pre { font-family: Consolas, "Cascadia Mono", monospace; font-size: 8.5pt; background: var(--soft); border: 1px solid var(--line); border-radius: 4px; padding: 7pt 9pt; white-space: pre-wrap; break-inside: avoid; margin: 0 0 9pt; }
+    table { border-collapse: collapse; width: 100%; margin: 4pt 0 10pt; font-size: 9.5pt; break-inside: auto; }
+    th, td { border: 1px solid var(--line); padding: 4pt 6pt; text-align: left; vertical-align: top; }
+    th { background: #eff6ff; color: #1e3a8a; }
+    tr { break-inside: avoid; }
+    figure { margin: 8pt 0 14pt; break-inside: avoid; text-align: center; }
+    figure img { max-width: 100%; max-height: 7.4in; border: 1px solid var(--line); border-radius: 4px; }
+    figcaption { font-size: 9pt; color: var(--muted); margin-top: 4pt; }
+    .cover { border-left: 6px solid var(--blue); padding: 4pt 0 4pt 14pt; margin-bottom: 18pt; }
+    .cover .sub { font-size: 12pt; color: #374151; }
+    .cover .meta { color: var(--muted); font-size: 10pt; margin-top: 6pt; }
+    .todo { background: #fefce8; border: 1px dashed #ca8a04; color: #713f12; border-radius: 4px; padding: 6pt 9pt; margin: 6pt 0 10pt; font-size: 9.5pt; }
+    .note { background: #eff6ff; border-left: 4px solid var(--blue); padding: 6pt 9pt; margin: 6pt 0 10pt; font-size: 9.5pt; }
+    .page-break { break-before: page; }
+    .muted { color: var(--muted); }
+    .ok { color: #15803d; font-weight: 600; }
+    svg text { font-family: "Segoe UI", system-ui, sans-serif; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+    <h1>Project Phase 2 – Cloud Dashboard Development</h1>
+    <div class="sub">Nutritional Insights: an Azure Functions API and an App Service dashboard for the Diets dataset</div>
+    <div class="meta">CPSY 300 – Cloud Computing for Software Development · Hailey Smolak · October 30, 2026</div>
+</div>
+
+<h2>1. Deliverables</h2>
+<table>
+    <tr><th style="width:32%">Deliverable</th><th>Location</th></tr>
+    <tr><td>Deployed Azure Function URL</td><td><a href="https://dietinsights-func-9c7a4a.azurewebsites.net/api/insights"><code>https://dietinsights-func-9c7a4a.azurewebsites.net/api</code></a><br>Endpoints: <code>/insights</code>, <code>/recipes</code>, <code>/clusters</code>, <code>/health</code></td></tr>
+    <tr><td>Dashboard (Azure App Service web app)</td><td><a href="https://dietinsights-web-9c7a4a.azurewebsites.net"><code>https://dietinsights-web-9c7a4a.azurewebsites.net</code></a><br><span class="muted">App Service instead of Static Web Apps because of the student subscription's region policy (section 2)</span></td></tr>
+    <tr><td>GitHub repository (frontend + backend)</td><td><span class="todo" style="display:inline-block;margin:0">Pending: <code>https://github.com/pawsp7/&lt;repository&gt;</code></span></td></tr>
+    <tr><td>Documentation</td><td>This document (<code>docs/Phase2_Documentation.pdf</code>); source in <code>docs/Phase2_Documentation.html</code></td></tr>
+</table>
+
+<h2>2. Overview</h2>
+<p>Phase 1 analysed <code>All_Diets.csv</code> (7,806 recipes, 5 diet types, 19 cuisines) with pandas: average macronutrients per diet, top protein recipes, most common cuisines, protein-to-carbs and carbs-to-fat ratios, and Matplotlib/Seaborn charts. That work ran locally and in a Docker container, with Azurite standing in for Blob Storage.</p>
+<p>Phase 2 moves the same analysis to Azure. The CSV now lives in a private container in an <strong>Azure Storage account</strong>. An <strong>Azure Function App</strong> (Python) reads it, cleans it with the Phase 1 rules, and returns chart-ready JSON from four HTTP endpoints. An <strong>App Service web app</strong> (Free tier) hosts the dashboard, which calls those endpoints from the browser and draws the charts with Chart.js. All resources sit in one resource group, <code>diet-analysis-rg</code>, and one script (<code>infra/deploy.ps1</code>) provisions and deploys all of it.</p>
+<p>The assignment allows either Azure Static Web Apps or App Service for the dashboard. App Service was used because the Azure for Students subscription only allows deployments to five regions (Canada Central, France Central, Norway East, Belgium Central, Mexico Central), and Static Web Apps can't be created in any of them. The deploy script still supports Static Web Apps (<code>-FrontendHost staticwebapp</code>) for subscriptions without that policy.</p>
+
+<table>
+    <tr><th>Component</th><th>Phase 1 (local)</th><th>Phase 2 (cloud)</th></tr>
+    <tr><td>Function execution</td><td>Local Python script / Docker container</td><td>Azure Functions (Python 3.13, Flex Consumption plan)</td></tr>
+    <tr><td>Blob storage</td><td>Azurite emulator</td><td>Azure Storage account, private <code>datasets</code> container</td></tr>
+    <tr><td>Configuration</td><td>Hard-coded file path</td><td>App settings (environment variables): <code>DIETS_STORAGE_CONNECTION</code>, <code>DIETS_CONTAINER</code>, <code>DIETS_BLOB</code>, <code>DIETS_CACHE_SECONDS</code></td></tr>
+    <tr><td>Output</td><td>Console output and PNG files</td><td>JSON API, plus a dashboard in the browser</td></tr>
+    <tr><td>Deployment</td><td><code>docker build</code> / <code>docker compose</code></td><td><code>infra/deploy.ps1</code> (Azure CLI), with GitHub Actions running the tests</td></tr>
+</table>
+
+<h2>3. Architecture</h2>
+<figure>
+<svg viewBox="0 0 680 400" width="100%" role="img" aria-label="Architecture diagram">
+    <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#374151"/></marker>
+        <marker id="arrb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/></marker>
+    </defs>
+    <!-- resource group -->
+    <rect x="165" y="14" width="505" height="290" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="6 4"/>
+    <text x="180" y="34" font-size="11" fill="#475569" font-weight="600">Resource group: diet-analysis-rg (Canada Central)</text>
+
+    <!-- browser -->
+    <rect x="8" y="140" width="115" height="92" rx="8" fill="#fff" stroke="#374151"/>
+    <text x="65" y="162" font-size="12" font-weight="700" text-anchor="middle">User's browser</text>
+    <text x="65" y="180" font-size="10" text-anchor="middle" fill="#4b5563">Dashboard: HTML,</text>
+    <text x="65" y="194" font-size="10" text-anchor="middle" fill="#4b5563">Tailwind CSS,</text>
+    <text x="65" y="208" font-size="10" text-anchor="middle" fill="#4b5563">Chart.js, app.js</text>
+
+    <!-- dashboard web app -->
+    <rect x="195" y="52" width="190" height="72" rx="8" fill="#eff6ff" stroke="#2563eb"/>
+    <text x="290" y="74" font-size="12" font-weight="700" text-anchor="middle">Azure App Service web app</text>
+    <text x="290" y="91" font-size="10" text-anchor="middle" fill="#4b5563">Free F1 plan · serves frontend/</text>
+    <text x="290" y="105" font-size="10" text-anchor="middle" fill="#4b5563">index.html, js/app.js, js/config.js</text>
+
+    <!-- function app -->
+    <rect x="195" y="170" width="190" height="104" rx="8" fill="#fef3c7" stroke="#d97706"/>
+    <text x="290" y="191" font-size="12" font-weight="700" text-anchor="middle">Azure Function App</text>
+    <text x="290" y="207" font-size="10" text-anchor="middle" fill="#4b5563">Python 3.13 · Flex Consumption</text>
+    <text x="290" y="225" font-size="10" text-anchor="middle" font-family="Consolas, monospace">GET /api/insights</text>
+    <text x="290" y="238" font-size="10" text-anchor="middle" font-family="Consolas, monospace">GET /api/recipes</text>
+    <text x="290" y="251" font-size="10" text-anchor="middle" font-family="Consolas, monospace">GET /api/clusters</text>
+    <text x="290" y="264" font-size="10" text-anchor="middle" font-family="Consolas, monospace">GET /api/health</text>
+
+    <!-- storage -->
+    <rect x="460" y="170" width="195" height="104" rx="8" fill="#ecfdf5" stroke="#059669"/>
+    <text x="557" y="191" font-size="12" font-weight="700" text-anchor="middle">Storage account</text>
+    <text x="557" y="207" font-size="10" text-anchor="middle" fill="#4b5563">Standard_LRS · TLS 1.2 · HTTPS only</text>
+    <text x="557" y="223" font-size="10" text-anchor="middle" fill="#4b5563">public blob access disabled</text>
+    <text x="557" y="243" font-size="10" text-anchor="middle" font-family="Consolas, monospace">datasets/All_Diets.csv</text>
+    <text x="557" y="258" font-size="10" text-anchor="middle" fill="#4b5563">(private container)</text>
+
+    <!-- app insights -->
+    <rect x="460" y="52" width="195" height="72" rx="8" fill="#f5f3ff" stroke="#7c3aed"/>
+    <text x="557" y="74" font-size="12" font-weight="700" text-anchor="middle">Application Insights</text>
+    <text x="557" y="91" font-size="10" text-anchor="middle" fill="#4b5563">request logs, failures,</text>
+    <text x="557" y="105" font-size="10" text-anchor="middle" fill="#4b5563">execution times</text>
+
+    <!-- arrows -->
+    <path d="M110,140 C125,100 160,88 195,88" fill="none" stroke="#374151" stroke-width="1.5" marker-end="url(#arr)"/>
+    <text x="112" y="100" font-size="10" fill="#111827" text-anchor="end">① load page</text>
+
+    <line x1="123" y1="200" x2="195" y2="200" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrb)"/>
+    <text x="127" y="194" font-size="9" fill="#1d4ed8">② fetch (CORS)</text>
+    <line x1="195" y1="225" x2="123" y2="225" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrb)"/>
+    <text x="127" y="239" font-size="9" fill="#1d4ed8">④ JSON + meta</text>
+
+    <line x1="385" y1="222" x2="460" y2="222" stroke="#374151" stroke-width="1.5" marker-end="url(#arr)"/>
+    <text x="390" y="214" font-size="9.5" fill="#111827">③ read blob</text>
+    <text x="390" y="238" font-size="8.5" fill="#6b7280">connection string</text>
+    <text x="390" y="249" font-size="8.5" fill="#6b7280">from app settings</text>
+
+    <path d="M385,180 C420,150 430,110 460,96" fill="none" stroke="#7c3aed" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+    <text x="432" y="162" font-size="9.5" fill="#6d28d9">telemetry</text>
+
+    <!-- tooling -->
+    <rect x="165" y="318" width="245" height="72" rx="8" fill="#fff" stroke="#374151"/>
+    <text x="287" y="338" font-size="11.5" font-weight="700" text-anchor="middle">GitHub repository</text>
+    <text x="287" y="355" font-size="10" text-anchor="middle" fill="#4b5563">frontend/ and backend/ source,</text>
+    <text x="287" y="369" font-size="10" text-anchor="middle" fill="#4b5563">Actions: pytest on every push</text>
+    <rect x="425" y="318" width="245" height="72" rx="8" fill="#fff" stroke="#374151"/>
+    <text x="547" y="338" font-size="11.5" font-weight="700" text-anchor="middle">infra/deploy.ps1 (Azure CLI)</text>
+    <text x="547" y="355" font-size="10" text-anchor="middle" fill="#4b5563">creates every resource above, uploads</text>
+    <text x="547" y="369" font-size="10" text-anchor="middle" fill="#4b5563">the CSV, deploys code, sets CORS</text>
+    <line x1="547" y1="318" x2="547" y2="306" stroke="#374151" stroke-width="1.3" marker-end="url(#arr)"/>
+    <line x1="287" y1="318" x2="287" y2="306" stroke="#374151" stroke-width="1.3" marker-end="url(#arr)"/>
+</svg>
+<figcaption>Figure A. Architecture. Numbers show the order of a dashboard request.</figcaption>
+</figure>
+
+<h3>Request flow</h3>
+<ol>
+    <li>The browser loads the dashboard (static files) from the App Service web app. <code>js/config.js</code> holds the Function App's API base URL.</li>
+    <li><code>app.js</code> calls the Function App with <code>fetch()</code>, for example <code>GET /api/insights?diet=keto</code>. The dashboard and the Function App are on different origins, so the Function App's CORS list allows only the dashboard's hostname.</li>
+    <li>On a cold instance, or when the cache has expired or <code>refresh=true</code> is passed, the function downloads <code>All_Diets.csv</code> from Blob Storage using the connection string in its app settings, then cleans it with pandas. Warm instances reuse the parsed DataFrame for 5 minutes.</li>
+    <li>The function returns <code>{"data": …, "meta": …}</code>. The dashboard draws the charts from <code>data</code> and shows <code>meta</code>: function execution time, cache hit or miss, which blob was read and when it was last modified, and the app and region that served the call.</li>
+</ol>
+
+<h2>4. Azure services and configuration</h2>
+<table>
+    <tr><th style="width:22%">Resource</th><th style="width:26%">Name (from deploy.ps1)</th><th>Configuration and purpose</th></tr>
+    <tr><td>Resource group</td><td><code>diet-analysis-rg</code></td><td>Holds every resource for the project, so the whole project can be removed with one delete (<code>infra/teardown.ps1</code>). Tagged <code>project=nutritional-insights</code>, <code>phase=2</code>, <code>course=CPSY300</code>.</td></tr>
+    <tr><td>Storage account</td><td><code>dietinsightsst&lt;suffix&gt;</code></td><td>StorageV2, Standard_LRS, minimum TLS 1.2, HTTPS only, anonymous blob access disabled. The private container <code>datasets</code> holds <code>All_Diets.csv</code>. The Function App's own runtime state uses the same account.</td></tr>
+    <tr><td>Function App</td><td><code>dietinsights-func-&lt;suffix&gt;</code></td><td>Linux, Python 3.13, Flex Consumption plan (pay per execution; <code>-Plan consumption</code> selects the classic Consumption plan instead). Deployed by zip deploy with a remote build, so <code>requirements.txt</code> is installed inside Azure. CORS allows the dashboard's origin only.</td></tr>
+    <tr><td>Application Insights</td><td>created with the Function App</td><td>Collects request traces, exceptions and the <code>logging.info</code> line each endpoint writes (status, execution time, cache result).</td></tr>
+    <tr><td>App Service plan + web app</td><td><code>dietinsights-webplan-&lt;suffix&gt;</code>, <code>dietinsights-web-&lt;suffix&gt;</code></td><td>Windows, Free (F1) plan in Canada Central. IIS serves <code>frontend/</code>, which has no build step. HTTPS only, minimum TLS 1.2, FTP disabled. <code>web.config</code> adds <code>nosniff</code> and referrer-policy headers.</td></tr>
+</table>
+<p class="muted">The suffix is the first 6 hex characters of SHA-256(subscription id + resource group). Names stay globally unique and stay the same on every re-run, so the script updates existing resources instead of creating duplicates.</p>
+
+<h3>Environment variables (Function App settings)</h3>
+<table>
+    <tr><th style="width:30%">Setting</th><th>Value / purpose</th></tr>
+    <tr><td><code>DIETS_STORAGE_CONNECTION</code></td><td>Connection string of the storage account holding the dataset. It is set by the deploy script and never committed. If unset, the code falls back to <code>AzureWebJobsStorage</code>.</td></tr>
+    <tr><td><code>DIETS_CONTAINER</code> / <code>DIETS_BLOB</code></td><td><code>datasets</code> / <code>All_Diets.csv</code>. Pointing these at another blob changes the dataset without a code change.</td></tr>
+    <tr><td><code>DIETS_CACHE_SECONDS</code></td><td><code>300</code>: how long a warm instance reuses the parsed data before reading the blob again.</td></tr>
+    <tr><td><code>FUNCTIONS_WORKER_RUNTIME</code>, <code>AzureWebJobsStorage</code></td><td>Set by Azure when the Function App is created.</td></tr>
+</table>
+<p>Locally, the same settings live in <code>backend/local.settings.json</code>, with <code>UseDevelopmentStorage=true</code> pointing at Azurite. That file is git-ignored; <code>local.settings.example.json</code> is the committed template. The only difference between local and cloud is the connection string, which was the goal of moving from Azurite to live Blob Storage.</p>
+
+<h2>5. Backend: the Azure Function</h2>
+<p>The backend uses the Python v2 programming model (<code>backend/function_app.py</code>). The analysis code is kept in <code>analysis.py</code>, separate from Azure, so it can be unit tested on a plain DataFrame. <code>data_source.py</code> handles Blob Storage and caching.</p>
+<table>
+    <tr><th style="width:21%">Endpoint</th><th style="width:30%">Query parameters</th><th>Returns</th></tr>
+    <tr><td><code>GET /api/insights</code></td><td><code>diet</code> (all or a diet type), <code>refresh=true</code> to bypass the cache</td><td>Summary figures, average macros by diet (bar), recipe distribution (pie; by diet, or by cuisine when a diet is chosen), Pearson correlation matrix (heatmap), a 600-point sample stratified by diet (scatter), top 5 protein recipes per diet, most common cuisine per diet.</td></tr>
+    <tr><td><code>GET /api/recipes</code></td><td><code>diet</code>, <code>search</code> (matches recipe, diet or cuisine), <code>sort</code> (protein, carbs, fat, name), <code>order</code>, <code>page</code>, <code>pageSize</code> (1–100)</td><td>One page of recipes, each with both ratios, plus <code>total</code> and <code>totalPages</code>.</td></tr>
+    <tr><td><code>GET /api/clusters</code></td><td><code>diet</code>, <code>k</code> (2–6)</td><td>k-means groups of recipes by macro profile. Features: share of protein, carbs and fat plus log of total grams, standardised; k-means++ seeding with a fixed seed. Each cluster has a name (e.g. "High-protein"), size, average grams and its most common diet.</td></tr>
+    <tr><td><code>GET /api/health</code></td><td>none</td><td>Whether storage is configured and the blob is reachable, plus blob size and last-modified time. Returns 503 if the blob is unreachable. Used by the deploy script's smoke test.</td></tr>
+</table>
+
+<h3>Data processing (carried over from Phase 1)</h3>
+<ul>
+    <li>Macros are converted to numbers, and missing protein, carbs or fat values are filled with the column mean (the Phase 1 rule).</li>
+    <li>Diet and cuisine names are trimmed and lower-cased, so <code>"Vegan"</code> and <code>"vegan "</code> count as one diet. A missing cuisine becomes <code>unknown</code>.</li>
+    <li><code>Protein_to_Carbs_ratio</code> and <code>Carbs_to_Fat_ratio</code> are computed per recipe. Where the divisor is 0 (38 recipes have 0 g fat), the ratio is left blank rather than infinite. All NaN and infinity values become JSON <code>null</code>.</li>
+</ul>
+
+<h3>Response metadata and errors</h3>
+<pre>"meta": {
+  "endpoint": "insights", "executionTimeMs": 23.1, "coldStart": false, "cache": "hit",
+  "generatedAt": "2026-10-30T23:14:48Z",
+  "instance": { "app": "dietinsights-func-…", "region": "Canada Central", "python": "3.13" },
+  "dataset": { "storageAccount": "dietinsightsst…", "container": "datasets", "blob": "All_Diets.csv",
+               "blobLastModified": "…", "sizeBytes": 702514, "cleanRows": 7806, "blobLoadMs": 34.2 },
+  "filters": { "diet": "keto" }
+}</pre>
+<p>Invalid parameters return <strong>400</strong> and an unknown diet returns <strong>404</strong>. If storage is unreachable or misconfigured, the endpoint returns <strong>503</strong> with the reason. Every response, including errors, carries <code>executionTimeMs</code>. The functions use anonymous auth level because the dashboard is public and only reads data. A function key embedded in browser JavaScript would not stay secret, so CORS and read-only endpoints are the real controls.</p>
+
+<h2>6. Frontend dashboard</h2>
+<p>The dashboard (<code>frontend/</code>) keeps the course UI template's structure, Tailwind classes and section order: Explore Nutritional Insights → Filters and Data Interaction → API Data Interaction → Pagination. Every element now loads live data from the Function App.</p>
+<table>
+    <tr><th style="width:27%">Requirement</th><th>How the dashboard meets it</th></tr>
+    <tr><td>At least three visualizations from the Azure Function</td><td>Five: grouped <strong>bar chart</strong> (average protein, carbs and fat by diet), <strong>scatter plot</strong> (protein vs carbs, coloured by diet, optional log scale), correlation <strong>heatmap</strong>, <strong>pie chart</strong> (recipes by diet, or by cuisine within the selected diet), and a <strong>cluster scatter</strong> with a summary table.</td></tr>
+    <tr><td>Interaction controls</td><td>Diet-type filter (redraws every chart and panel); recipe search box (debounced); sort selector; <em>Get Nutritional Insights</em> refresh button (forces a fresh read from Blob Storage); <em>Get Recipes</em>; <em>Get Clusters</em> with a k selector; real pagination (Previous / numbered pages / Next); Reset filters.</td></tr>
+    <tr><td>Metadata such as execution time</td><td>Strip under the header: function execution time (from the server), browser round-trip time, cache hit or Blob read, blob path, blob last-modified time, and the serving app and region. A request log lists the last 10 calls with status, function ms, round-trip ms and cache result.</td></tr>
+    <tr><td>Publicly accessible</td><td>Deployed to an Azure App Service web app (Free F1) by <code>infra/deploy.ps1</code>. Re-running the script redeploys it.</td></tr>
+</table>
+<p>Other details: a connection indicator in the header; error messages that name the failing URL and point to CORS when a request is blocked; replies from older requests are ignored while the user types; responsive layout down to phone width. The API base URL comes from <code>js/config.js</code> and can be overridden with <code>?api=&lt;url&gt;</code> for testing.</p>
+
+<h2>7. Workflow</h2>
+<h3>Deployment (infra/deploy.ps1)</h3>
+<pre>az login
+powershell -ExecutionPolicy Bypass -File infra/deploy.ps1          # or ./infra/deploy.ps1 in Azure Cloud Shell (pwsh)
+
+ 1. register providers, create resource group diet-analysis-rg
+ 2. create storage account + private container "datasets", upload data/All_Diets.csv
+ 3. create Function App (Flex Consumption, Python 3.13) + Application Insights
+ 4. set app settings DIETS_STORAGE_CONNECTION / DIETS_CONTAINER / DIETS_BLOB / DIETS_CACHE_SECONDS
+ 5. zip the backend and deploy with remote build; poll /api/health until the blob is reachable
+ 6. create App Service plan (Free F1) + web app; HTTPS only, TLS 1.2, FTP off
+ 7. add the web app's origin to the Function App's CORS list; write frontend/js/config.js
+ 8. zip deploy frontend/ to the web app; smoke-test /api/insights
+ → URLs saved to infra/deployment-outputs.json</pre>
+
+<h3>Local development</h3>
+<pre>npx azurite-blob --location .azurite                       # local Blob Storage, as in Phase 1
+cd backend &amp;&amp; python -m venv .venv &amp;&amp; .venv\Scripts\pip install -r requirements-dev.txt
+copy local.settings.example.json local.settings.json
+.venv\Scripts\python upload_dataset.py                    # seed All_Diets.csv into Azurite
+func start                                                 # or: .venv\Scripts\python dev_server.py
+cd ..\frontend &amp;&amp; python -m http.server 4280               # dashboard at http://localhost:4280</pre>
+<p><code>dev_server.py</code> loads <code>local.settings.json</code> and serves the same decorated handlers on port 7071. It is for machines without Azure Functions Core Tools (see Challenges).</p>
+
+<h3>Continuous integration</h3>
+<p><code>.github/workflows/ci.yml</code> runs the backend test suite on every push and pull request. Deployments go through <code>infra/deploy.ps1</code>, which is safe to re-run.</p>
+
+<h2>8. Testing</h2>
+<ul>
+    <li><strong>Unit tests (20, all passing):</strong> <code>backend/tests/</code>. Cover cleaning (mean fill, text normalisation, divide-by-zero ratios, schema check), averages against the Phase 1 numbers, JSON safety (no NaN), the per-diet filter, pagination and search, k-means behaviour and repeatability, and the HTTP handlers (cache hit/miss/refresh, 400/404/503 codes, health check) with a fake blob source.</li>
+    <li><strong>Cloud end-to-end:</strong> after the deploy, every endpoint, the error codes, CORS, HTTPS redirection and the dashboard were checked against the live Azure resources (section 9, Figures 1–4).</li>
+    <li><strong>Local end-to-end:</strong> Azurite holds the blob, the function handlers serve on <code>localhost:7071</code>, and the dashboard runs on <code>localhost:4280</code>. Figures 5–12 come from this setup.</li>
+    <li><strong>Endpoint tests in the browser:</strong> <code>/api/health</code>, <code>/api/insights</code>, <code>/api/recipes?search=pho</code>, and <code>/api/clusters?k=9</code> (returns 400 as expected).</li>
+</ul>
+<pre>backend&gt; .venv\Scripts\python -m pytest -q
+....................                                                     [100%]
+20 passed in 0.92s</pre>
+
+<h2>9. Deployment results and screenshots</h2>
+<h3>Deployed resources (Azure for Students, Canada Central)</h3>
+<p>Deployed on October 30, 2026 by <code>infra/deploy.ps1</code>. The list below was read back from Azure with <code>az resource list -g diet-analysis-rg</code> and the matching <code>show</code> commands.</p>
+<table>
+    <tr><th style="width:21%">Resource</th><th style="width:29%">Name</th><th style="width:17%">Type / SKU</th><th>Verified settings</th></tr>
+    <tr><td>Storage account</td><td><code>dietinsightsst9c7a4a</code></td><td>StorageV2, Standard_LRS</td><td>TLS 1.2 minimum, HTTPS only, anonymous blob access off. Private container <code>datasets</code> holds <code>All_Diets.csv</code> (702,514 bytes).</td></tr>
+    <tr><td>Function App</td><td><code>dietinsights-func-9c7a4a</code></td><td>Linux, Python 3.13</td><td>Functions <code>clusters</code>, <code>health</code>, <code>insights</code>, <code>recipes</code>. CORS: <code>https://dietinsights-web-9c7a4a.azurewebsites.net</code> only.</td></tr>
+    <tr><td>Flex Consumption plan</td><td><code>ASP-dietanalysisrg-8bcd</code></td><td>FC1</td><td>Created with the Function App.</td></tr>
+    <tr><td>Application Insights</td><td><code>dietinsights-func-9c7a4a</code></td><td>(component)</td><td>Connected through <code>APPLICATIONINSIGHTS_CONNECTION_STRING</code>. Azure also adds a "Smart Detection" action group.</td></tr>
+    <tr><td>App Service plan</td><td><code>dietinsights-webplan-9c7a4a</code></td><td>Windows, F1 (Free)</td><td>Hosts the dashboard web app.</td></tr>
+    <tr><td>Web app (dashboard)</td><td><code>dietinsights-web-9c7a4a</code></td><td>Windows (IIS)</td><td>HTTPS only (HTTP returns 301 to HTTPS), TLS 1.2, FTP disabled, HTTP/2 on. Responses carry <code>nosniff</code> and <code>Referrer-Policy</code> headers.</td></tr>
+</table>
+<p>Function App settings (names only): <code>DIETS_STORAGE_CONNECTION</code>, <code>DIETS_CONTAINER</code>, <code>DIETS_BLOB</code>, <code>DIETS_CACHE_SECONDS</code>, plus <code>AzureWebJobsStorage</code>, <code>DEPLOYMENT_STORAGE_CONNECTION_STRING</code> and <code>APPLICATIONINSIGHTS_CONNECTION_STRING</code> added by Azure.</p>
+
+<h3>Checks against the live deployment</h3>
+<pre>GET /api/insights?diet=keto                 200  function 97.6 ms  cache miss (fresh blob read)
+GET /api/recipes?search=chicken&amp;page=2      200  function 8.7 ms   cache hit
+GET /api/clusters?k=4                       200
+GET /api/clusters?k=9                       400  'k' must be between 2 and 6
+GET /api/insights?diet=nope                 404  unknown diet type 'nope'
+Origin: https://dietinsights-web-9c7a4a…    Access-Control-Allow-Origin returned
+Origin: https://evil.example                no Access-Control-Allow-Origin (browser blocks it)
+GET http://dietinsights-web-9c7a4a…         301 redirect to https://</pre>
+<p>Every response reports <code>"region": "canadacentral"</code> and Python 3.13. Cold calls took about 4–5 s in the browser, because a new Flex instance starts and downloads the blob. Warm calls finish in under 40 ms of function time and about 0.3–0.6 s round trip.</p>
+
+<figure><img src="screenshots/azure-dashboard-top.png" alt="Live dashboard on Azure"><figcaption>Figure 1. The live dashboard at <code>https://dietinsights-web-9c7a4a.azurewebsites.net</code>. The header shows the connected Function App; the metadata strip shows function execution time, round trip, warm-cache hit, the Azure blob it read (<code>dietinsightsst9c7a4a/datasets/All_Diets.csv</code>) and the serving app.</figcaption></figure>
+<figure><img src="screenshots/azure-dashboard-panels.png" alt="Full live dashboard with recipes and clusters" style="max-height:8.4in"><figcaption>Figure 2. The full live page after "Get Recipes" and "Get Clusters": four charts, recipes table, k-means clusters, pagination (781 pages), and the request log with each call's status, function time and round trip.</figcaption></figure>
+<figure><img src="screenshots/azure-api-recipes.png" alt="Recipes endpoint JSON" style="max-height:7.2in"><figcaption>Figure 3. <code>GET https://dietinsights-func-9c7a4a.azurewebsites.net/api/recipes?diet=keto&amp;sort=protein&amp;pageSize=2</code> in a browser (JSON formatted for reading). <code>meta</code> shows execution time, region, cache result and the blob read from the storage account.</figcaption></figure>
+<figure><img src="screenshots/azure-api-health.png" alt="Health endpoint JSON" style="max-height:3in"><figcaption>Figure 4. <code>GET /api/health</code> on Azure: storage configured and blob reachable.</figcaption></figure>
+
+<h3>Local run (Azurite + function handlers + dashboard)</h3>
+<figure><img src="screenshots/fig1-dashboard-top.png" alt="Dashboard header, metadata strip, summary tiles and first charts"><figcaption>Figure 5. Header with connection status, the function metadata strip (execution time, round trip, cache, blob source), summary tiles, and the bar and scatter charts.</figcaption></figure>
+<figure><img src="screenshots/fig2-charts-all-diets.png" alt="Four charts for all diets"><figcaption>Figure 6. The four template visualizations for all 7,806 recipes. Keto has the highest average protein; vegan recipes are the most carb-heavy; protein and fat are the most correlated macros (r = 0.48).</figcaption></figure>
+<figure><img src="screenshots/fig3-charts-keto-filter.png" alt="Charts filtered to keto"><figcaption>Figure 7. Diet filter set to Keto, scatter on log scale. The pie chart switches to cuisines within the diet.</figcaption></figure>
+<figure><img src="screenshots/fig4-api-recipes-clusters.png" alt="Recipes table and clusters"><figcaption>Figure 8. "Get Recipes" (sorted by protein) and "Get Clusters" with k = 4.</figcaption></figure>
+<figure><img src="screenshots/fig5-search-pagination.png" alt="Pagination"><figcaption>Figure 9. Pagination after searching "chicken": page 2 of 74 (732 matching recipes).</figcaption></figure>
+<figure><img src="screenshots/fig7-request-log.png" alt="Request log"><figcaption>Figure 10. Request log: each call with HTTP status, server execution time, round trip and cache result. "refresh=true" shows a cache miss (fresh Blob read).</figcaption></figure>
+<figure><img src="screenshots/local-api-health.png" alt="Health endpoint in a browser"><figcaption>Figure 11. <code>/api/health</code> tested in the browser: storage configured, blob reachable.</figcaption></figure>
+<figure><img src="screenshots/fig6-mobile.png" alt="Mobile layout" style="max-height:6.4in"><figcaption>Figure 12. Phone-width layout.</figcaption></figure>
+
+<h2>10. Challenges and solutions</h2>
+<table>
+    <tr><th style="width:28%">Challenge</th><th>Solution</th></tr>
+    <tr><td>Moving from Azurite to live Blob Storage without code changes</td><td>All storage settings are read from environment variables. Locally the connection string is <code>UseDevelopmentStorage=true</code>; in Azure it is the real account's connection string, set by the deploy script. The code path is identical in both.</td></tr>
+    <tr><td>Static Web Apps not allowed on the student subscription</td><td>The Azure for Students "Allowed resource deployment regions" policy denies every region that offers Static Web Apps. The dashboard is static files, so it is hosted on a Free (F1) App Service web app in Canada Central instead, which the assignment also accepts. <code>web.config</code> sets the same security headers that <code>staticwebapp.config.json</code> would.</td></tr>
+    <tr><td>Browser calls from the dashboard to the Function App are cross-origin</td><td>The deploy script adds only the dashboard's hostname to the Function App's CORS list, and the dashboard shows a CORS hint when a request is blocked. <code>-AllowLocalDev</code> also allows <code>localhost:4280</code> for testing a local dashboard against the cloud API.</td></tr>
+    <tr><td>Re-downloading and re-parsing a 700 KB CSV on every request is slow and wasteful</td><td>Warm instances cache the cleaned DataFrame for <code>DIETS_CACHE_SECONDS</code>. <code>refresh=true</code> (the "Get Nutritional Insights" button) forces a fresh read, and <code>meta.cache</code> shows which happened. In local tests, cached calls took about 10–60 ms of function time.</td></tr>
+    <tr><td>Heavy-tailed data (one recipe has 3,405 g carbs) squeezes most points into a corner</td><td>A log-scale toggle on the scatter plot, log axes on the cluster chart, and a log-of-total-grams feature for clustering. The scatter sample is capped at 600 points, stratified by diet, to keep the payload small.</td></tr>
+    <tr><td>JSON cannot represent NaN or infinity (38 recipes have 0 g fat)</td><td>Ratios with a zero divisor are left blank, and all numbers pass through one helper that turns NaN and infinity into <code>null</code>. A test serialises the full payload with <code>allow_nan=False</code>.</td></tr>
+    <tr><td>pandas 3 behaviour changes</td><td><code>groupby().apply()</code> no longer passes the grouping column, which broke the per-diet sampling. It was rewritten as shuffle + <code>groupby().head()</code>.</td></tr>
+    <tr><td>Choosing a hosting plan</td><td>Microsoft recommends Flex Consumption for new apps and is retiring the Linux Consumption plan, so the default is Flex Consumption, with a <code>-Plan consumption</code> fallback in case a subscription or region does not offer Flex.</td></tr>
+    <tr><td>First remote build failed: "No matching distribution found for azure-functions==2.3.0"</td><td><code>azure-functions</code> 2.x needs Python 3.13 (the version the tests ran on), but the first Function App was created for 3.12. Changing its runtime setting afterwards did not change the Flex build image, so the empty app was recreated with Python 3.13. The script default and the CI workflow now use 3.13 too.</td></tr>
+    <tr><td>Azure CLI 2.91 creates Linux App Service plans by default</td><td>A Linux web app needs a language runtime even for static files. The script passes <code>--is-linux false</code>, so IIS on a Windows Free plan serves the files with no runtime or startup command.</td></tr>
+    <tr><td>Azure Functions Core Tools would not install on this machine (the npm installer fails under Node.js 24)</td><td>The cloud deployment does not need Core Tools: it uses Azure CLI zip deploy with remote build. For local runs, <code>dev_server.py</code> serves the same function handlers with the same settings file. Core Tools from winget (<code>func start</code>) also works.</td></tr>
+    <tr><td>Keeping secrets out of the repository</td><td><code>local.settings.json</code> is git-ignored, connection strings exist only in Function App settings, and the deploy script hides command output that would print them. The repository holds no keys or tokens.</td></tr>
+</table>
+
+<h2>11. Cost and clean-up</h2>
+<p>Every resource runs on a free or pay-per-use tier: App Service Free (F1), Flex Consumption (includes a monthly free grant of executions), Standard_LRS storage (one 700 KB blob), and Application Insights (low volume). When the project has been graded, <code>infra/teardown.ps1</code> deletes the resource group and stops all charges.</p>
+
+<h2>12. Repository structure</h2>
+<pre>backend/              Azure Function app (Python v2 model)
+  function_app.py     HTTP endpoints, parameter validation, response metadata
+  analysis.py         pandas/numpy analysis (no Azure dependencies)
+  data_source.py      Blob Storage download + warm cache, settings from env vars
+  host.json           Functions host config; also requirements.txt, .funcignore,
+                      local.settings.example.json
+  tests/              pytest suite (20 tests)
+  dev_server.py       local HTTP harness for the handlers
+  upload_dataset.py   seeds All_Diets.csv into Azurite or any storage account
+frontend/             dashboard: index.html, css/app.css, js/app.js, js/config.js,
+                      web.config (App Service), staticwebapp.config.json (Static Web Apps)
+data/All_Diets.csv    dataset uploaded to Blob Storage
+infra/                deploy.ps1, teardown.ps1, deployment-outputs.json (after deploy)
+docs/                 this document, screenshots, tools/capture.mjs
+.github/workflows/    ci.yml</pre>
+
+</body>
+</html>
